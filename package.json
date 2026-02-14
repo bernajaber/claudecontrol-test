@@ -1,0 +1,16 @@
+{
+  "name": "claudecontrol-test",
+  "version": "1.0.0",
+  "description": "TODO CLI - repo de teste para ClaudeControl",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
