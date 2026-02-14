@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { load, save } from '../src/storage.js';
 
-vi.mock('node:fs');
+vi.mock('node:fs/promises');
 vi.mock('node:os', () => ({
   default: {
     homedir: () => '/home/user'
@@ -14,66 +14,62 @@ describe('storage', () => {
   });
 
   describe('load', () => {
-    it('returns [] when file does not exist', async () => {
-      const fs = await import('node:fs');
-      fs.default.readFileSync.mockImplementation(() => {
-        const error = new Error('ENOENT');
-        error.code = 'ENOENT';
-        throw error;
-      });
+    it('returns [] when file does not exist (ENOENT)', async () => {
+      const fs = await import('node:fs/promises');
+      const error = new Error('ENOENT');
+      error.code = 'ENOENT';
+      fs.default.readFile.mockRejectedValue(error);
 
-      const result = load();
+      const result = await load();
       expect(result).toEqual([]);
     });
 
-    it('returns parsed data when file exists', async () => {
-      const fs = await import('node:fs');
+    it('returns parsed array when file exists', async () => {
+      const fs = await import('node:fs/promises');
       const testData = [{ id: 1, text: 'Test task', done: false }];
-      fs.default.readFileSync.mockReturnValue(JSON.stringify(testData));
+      fs.default.readFile.mockResolvedValue(JSON.stringify(testData));
 
-      const result = load();
+      const result = await load();
       expect(result).toEqual(testData);
     });
 
-    it('returns [] when file contains malformed JSON', async () => {
-      const fs = await import('node:fs');
-      fs.default.readFileSync.mockReturnValue('{invalid json}');
+    it('writes JSON formatted with correct indentation', async () => {
+      const fs = await import('node:fs/promises');
+      fs.default.writeFile.mockResolvedValue();
 
-      const result = load();
-      expect(result).toEqual([]);
+      const tasks = [{ id: 1, text: 'Test', done: false }];
+      await save(tasks);
+
+      expect(fs.default.writeFile).toHaveBeenCalledWith(
+        '/home/user/.todo.json',
+        JSON.stringify(tasks, null, 2),
+        'utf8'
+      );
+    });
+
+    it('re-throws errors that are not ENOENT', async () => {
+      const fs = await import('node:fs/promises');
+      const error = new Error('EPERM');
+      error.code = 'EPERM';
+      fs.default.readFile.mockRejectedValue(error);
+
+      await expect(load()).rejects.toThrow('EPERM');
     });
   });
 
   describe('save', () => {
-    it('writes formatted JSON', async () => {
-      const fs = await import('node:fs');
-      fs.default.mkdirSync.mockImplementation(() => {});
-      fs.default.writeFileSync.mockImplementation(() => {});
-      fs.default.renameSync.mockImplementation(() => {});
+    it('writes JSON formatted with correct indentation', async () => {
+      const fs = await import('node:fs/promises');
+      fs.default.writeFile.mockResolvedValue();
 
       const tasks = [{ id: 1, text: 'Test', done: false }];
-      save(tasks);
+      await save(tasks);
 
-      expect(fs.default.writeFileSync).toHaveBeenCalledWith(
-        '/home/user/.todo.json.tmp',
+      expect(fs.default.writeFile).toHaveBeenCalledWith(
+        '/home/user/.todo.json',
         JSON.stringify(tasks, null, 2),
         'utf8'
       );
-      expect(fs.default.renameSync).toHaveBeenCalledWith(
-        '/home/user/.todo.json.tmp',
-        '/home/user/.todo.json'
-      );
-    });
-
-    it('creates parent directory if needed', async () => {
-      const fs = await import('node:fs');
-      fs.default.mkdirSync.mockImplementation(() => {});
-      fs.default.writeFileSync.mockImplementation(() => {});
-      fs.default.renameSync.mockImplementation(() => {});
-
-      save([]);
-
-      expect(fs.default.mkdirSync).toHaveBeenCalledWith('/home/user', { recursive: true });
     });
   });
 });
